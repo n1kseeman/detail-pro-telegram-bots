@@ -61,6 +61,14 @@ class DetailBot:
 
     def register(self):
         r = self.router
+        @r.message(Command("chatid"))
+        async def chat_id(m: Message):
+            if not self.is_admin_bot:
+                return
+            if m.chat.type == "private":
+                await m.answer("Добавьте админ-бота в рабочую группу и отправьте там команду /chatid.")
+                return
+            await m.answer(f"ID этой группы: <code>{m.chat.id}</code>")
         @r.message(CommandStart())
         async def start(m: Message):
             await self.db.upsert_user(m.from_user); await self.answer_home(m)
