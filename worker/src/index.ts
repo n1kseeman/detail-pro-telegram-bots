@@ -29,10 +29,13 @@ const dayLabel = (day: string) => new Intl.DateTimeFormat("ru-RU", { timeZone: "
 const esc = (v: unknown) => String(v ?? "—").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 async function telegram(env: Env, method: string, payload: Record<string, unknown>) {
-  return fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/${method}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+  const response = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/${method}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+  const result = await response.json<{ ok?: boolean; result?: unknown; description?: string }>().catch(() => ({} as { ok?: boolean; result?: unknown; description?: string }));
+  if (!response.ok || result.ok === false) console.error(`Telegram ${method} failed: ${result.description || response.status}`);
+  return result.result;
 }
 async function send(env: Env, chat_id: number | string, text: string, reply_markup?: unknown) {
-  await telegram(env, "sendMessage", { chat_id, text, parse_mode: "HTML", reply_markup });
+  return telegram(env, "sendMessage", { chat_id, text, parse_mode: "HTML", reply_markup });
 }
 async function edit(env: Env, chat_id: number, message_id: number, text: string, reply_markup?: unknown) {
   await telegram(env, "editMessageText", { chat_id, message_id, text, parse_mode: "HTML", reply_markup });
@@ -99,7 +102,8 @@ async function notifyGroup(env: Env, db: D1Database, id: number) {
   if (!ap) return;
   const text = `${apText(ap)}\nКлиент: ${esc(ap.full_name)} @${esc(ap.username || "нет")}\nТелефон: ${esc(ap.phone)}\nАвто: ${esc(ap.brand)} ${esc(ap.model)}, ${esc(ap.car_year)}; ${esc(ap.plate)}\nКомментарий: ${esc(ap.comment)}`;
   const kb = keyboard([[b("✅ Подтвердить", `mgr:confirm:${id}`), b("Предложить другое время", `mgr:reschedule:${id}`)], [b("Отклонить", `mgr:reject:${id}`), b("Завершить", `mgr:complete:${id}`)]]);
-  await send(env, env.ADMIN_GROUP_ID, text, kb);
+  const groupMessage = await send(env, env.ADMIN_GROUP_ID, text, kb) as { message_id?: number } | undefined;
+  if (groupMessage?.message_id) await db.prepare("UPDATE appointments SET group_message_id=? WHERE id=?").bind(groupMessage.message_id, id).run();
   for (const photo of JSON.parse(String(ap.photos || "[]")) as string[]) await telegram(env, "sendPhoto", { chat_id: env.ADMIN_GROUP_ID, photo, caption: `Фото к заявке №${id}` });
 }
 
@@ -122,7 +126,7 @@ async function onCallback(env: Env, update: any) {
   if (data.startsWith("proposal:")) { const [, action, raw] = data.split(":"); const id = Number(raw); const ap = await env.DB.prepare("SELECT * FROM appointments WHERE id=? AND user_id=?").bind(id, chatId).first<Appointment>(); if (!ap) return; await env.DB.prepare("UPDATE appointments SET status=? WHERE id=?").bind(action === "yes" ? "confirmed" : "cancelled", id).run(); await edit(env, chatId, messageId, action === "yes" ? "✅ Новое время подтверждено." : "Предложенное время отклонено."); return; }
   if (data.startsWith("mgr:")) { await managerAction(env, q, data); return; }
   if (data.startsWith("mpday:")) { const [, id, day] = data.split(":"); const slots = await freeSlots(env.DB, day); await edit(env, chatId, messageId, `Выберите время на ${dayLabel(day)}:`, keyboard(slots.map((x) => [b(x, `mptime:${id}:${day}:${x}`)]))); return; }
-  if (data.startsWith("mptime:")) { const [, raw, day, time] = data.split(":"); const id = Number(raw); const ap = await env.DB.prepare("SELECT * FROM appointments WHERE id=?").bind(id).first<Appointment>(); if (!ap) return; try { await env.DB.prepare("UPDATE appointments SET date=?,time=?,status='proposed',proposed_date=?,proposed_time=? WHERE id=?").bind(day,time,day,time,id).run(); } catch { await answer(env, q.id, "Этот слот уже заняли"); return; } await edit(env, chatId, messageId, "Предложение времени отправлено клиенту."); await send(env, Number(ap.user_id), `📅 По заявке №${id} предлагается время: <b>${dayLabel(day)}, ${time}</b>. Подходит?`, keyboard([[b("✅ Принять", `proposal:yes:${id}`), b("Отклонить", `proposal:no:${id}`)]])); return; }
+  if (data.startsWith("mptime:")) { const [, raw, day, ...timeParts] = data.split(":"); const time = timeParts.join(":"); const id = Number(raw); const ap = await env.DB.prepare("SELECT * FROM appointments WHERE id=?").bind(id).first<Appointment>(); if (!ap) return; try { await env.DB.prepare("UPDATE appointments SET date=?,time=?,status='proposed',proposed_date=?,proposed_time=? WHERE id=?").bind(day,time,day,time,id).run(); } catch { await answer(env, q.id, "Этот слот уже заняли"); return; } await edit(env, chatId, messageId, "Предложение времени отправлено клиенту."); await send(env, Number(ap.user_id), `📅 По заявке №${id} предлагается время: <b>${dayLabel(day)}, ${time}</b>. Подходит?`, keyboard([[b("✅ Принять", `proposal:yes:${id}`), b("Отклонить", `proposal:no:${id}`)]])); return; }
 }
 
 function reviewText(d: Record<string, unknown>) { return `<b>Проверьте заявку</b>\nУслуги: ${esc((d.services as string[]).join(", "))}\nАвтомобиль: ${esc(d.brand)} ${esc(d.model)}, ${esc(d.year)}\nНомер: ${esc(d.plate)} · Кузов: ${esc(d.body)}\n📅 ${dayLabel(String(d.date))}, 🕒 ${esc(d.time)}\nТелефон: ${esc(d.phone)}\nКомментарий: ${esc(d.comment)}\nФото: ${((d.photos as string[]) || []).length}`; }

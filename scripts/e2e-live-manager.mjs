@@ -1,0 +1,12 @@
+const base = process.env.WORKER_URL;
+const secret = process.env.WEBHOOK_SECRET;
+const id = Number(process.env.APPOINTMENT_ID);
+const groupId = Number(process.env.ADMIN_GROUP_ID);
+const messageId = Number(process.env.GROUP_MESSAGE_ID);
+const action = process.env.ACTION;
+if (!base || !secret || !id || !groupId || !messageId || !["confirm", "cancel"].includes(action || "")) throw new Error("Set WORKER_URL, WEBHOOK_SECRET, APPOINTMENT_ID, ADMIN_GROUP_ID, GROUP_MESSAGE_ID and ACTION=confirm|cancel");
+const data = action === "confirm" ? `mgr:confirm:${id}` : `cancel:${id}`;
+const chat = action === "confirm" ? { id: groupId, type: "group", title: "MX Auto админка" } : { id: 909001, type: "private" };
+const response = await fetch(`${base}/telegram`, { method: "POST", headers: { "content-type": "application/json", "X-Telegram-Bot-Api-Secret-Token": secret }, body: JSON.stringify({ update_id: Date.now(), callback_query: { id: `live-manager-${action}`, from: { id: 837023662 }, data, message: { message_id: action === "confirm" ? messageId : 900, chat } } }) });
+if (!response.ok || await response.text() !== "OK") throw new Error(`Webhook failed: ${response.status}`);
+console.log(`Live ${action} action completed`);
