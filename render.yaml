@@ -12,8 +12,6 @@ services:
     envVars:
       - key: BOT_TOKEN
         sync: false
-      - key: ADMIN_BOT_TOKEN
-        sync: false
       - key: ADMIN_GROUP_ID
         sync: false
       - key: MANAGER_USERNAME

@@ -15,17 +15,12 @@ async def main():
     db = Database(settings.database_path, settings.timezone)
     await db.connect()
     await db.init()
-    client_bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    admin_bot = Bot(settings.admin_bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    client_app = DetailBot(settings, db, is_admin_bot=False)
-    admin_app = DetailBot(settings, db, is_admin_bot=True)
-    client_app.client_bot = admin_app.client_bot = client_bot
-    client_app.admin_bot = admin_app.admin_bot = admin_bot
+    bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    app = DetailBot(settings, db)
     try:
-        await asyncio.gather(client_app.run(client_bot), admin_app.run(admin_bot))
+        await app.run(bot)
     finally:
-        await client_bot.session.close()
-        await admin_bot.session.close()
+        await bot.session.close()
         await db.close()
 
 

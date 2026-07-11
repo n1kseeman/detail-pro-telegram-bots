@@ -22,8 +22,8 @@ def test_slot_is_reserved_once_and_released_on_cancel():
     asyncio.run(scenario())
 
 
-def test_admin_features_are_available_only_in_the_separate_admin_bot():
-    settings = Settings("client", "admin", -1001234567890, "manager", "", "Detail Pro", ":memory:", "Europe/Minsk")
+def test_one_bot_routes_orders_to_the_work_group():
+    settings = Settings("client", -1001234567890, "manager", "", "Detail Pro", ":memory:", "Europe/Minsk")
     db = Database(":memory:")
-    assert not DetailBot(settings, db, is_admin_bot=False).admin(10)
-    assert DetailBot(settings, db, is_admin_bot=True).admin(10)
+    app = DetailBot(settings, db)
+    assert app.admin_recipients() == {-1001234567890}

@@ -36,24 +36,16 @@ def ap_text(ap):
 
 
 class DetailBot:
-    def __init__(self, settings: Settings, db: Database, is_admin_bot: bool):
+    def __init__(self, settings: Settings, db: Database):
         self.settings, self.db = settings, db
-        self.is_admin_bot = is_admin_bot
-        self.client_bot: Bot | None = None
-        self.admin_bot: Bot | None = None
+        self.bot: Bot | None = None
         self.router = Router()
         self.register()
 
-    def admin(self, user_id): return self.is_admin_bot
+    def admin(self, user_id): return True
     def admin_recipients(self):
         return {self.settings.admin_group_id} if self.settings.admin_group_id is not None else set()
     async def answer_home(self, message):
-        if self.is_admin_bot:
-            if self.admin(message.from_user.id):
-                await self.show_admin(message)
-            else:
-                await message.answer("Этот бот предназначен для сотрудников центра. Доступ не предоставлен.", reply_markup=ReplyKeyboardRemove())
-            return
         await message.answer(f"Добро пожаловать в <b>{self.settings.center_name}</b>.\nВыберите действие в меню.", reply_markup=main_menu(False))
     async def edit_or_answer(self, event, text, markup=None):
         if isinstance(event, CallbackQuery): await event.message.edit_text(text, reply_markup=markup)
@@ -63,10 +55,8 @@ class DetailBot:
         r = self.router
         @r.message(Command("chatid"))
         async def chat_id(m: Message):
-            if not self.is_admin_bot:
-                return
             if m.chat.type == "private":
-                await m.answer("Добавьте админ-бота в рабочую группу и отправьте там команду /chatid.")
+                await m.answer("Добавьте бота в рабочую группу и отправьте там команду /chatid.")
                 return
             await m.answer(f"ID этой группы: <code>{m.chat.id}</code>")
         @r.message(CommandStart())
@@ -303,15 +293,15 @@ class DetailBot:
         for admin_id in self.admin_recipients():
             await self.send_admin(admin_id,text,kb)
             for photo in self.db.photos(ap['photos']):
-                try: await self.admin_bot.send_photo(admin_id,photo,caption=f"Фото к заявке №{aid}")
+                try: await self.bot.send_photo(admin_id,photo,caption=f"Фото к заявке №{aid}")
                 except Exception: logging.exception("Cannot send photo")
     async def notify_admins(self,text):
         for admin in self.admin_recipients(): await self.send_admin(admin,text)
     async def send_admin(self,user_id,text,markup=None):
-        try: await self.admin_bot.send_message(user_id,text,reply_markup=markup)
+        try: await self.bot.send_message(user_id,text,reply_markup=markup)
         except Exception: logging.exception("Cannot send message to admin %s",user_id)
     async def safe_send(self,user_id,text,markup=None):
-        try: await self.client_bot.send_message(user_id,text,reply_markup=markup)
+        try: await self.bot.send_message(user_id,text,reply_markup=markup)
         except Exception: logging.exception("Cannot send message to %s",user_id)
     async def show_manager_dates(self,c,aid):
         b=InlineKeyboardBuilder()
@@ -332,5 +322,6 @@ class DetailBot:
         b.adjust(4); b.row(*back_row()); await c.message.edit_text("Настройте рабочие дни:",reply_markup=b.as_markup())
 
     async def run(self, bot: Bot):
+        self.bot = bot
         dp=Dispatcher(); dp.include_router(self.router)
         await dp.start_polling(bot)
