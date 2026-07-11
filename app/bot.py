@@ -44,12 +44,9 @@ class DetailBot:
         self.router = Router()
         self.register()
 
-    def admin(self, user_id): return self.is_admin_bot and user_id in self.settings.admin_ids
+    def admin(self, user_id): return self.is_admin_bot
     def admin_recipients(self):
-        recipients = set(self.settings.admin_ids)
-        if self.settings.admin_group_id is not None:
-            recipients.add(self.settings.admin_group_id)
-        return recipients
+        return {self.settings.admin_group_id} if self.settings.admin_group_id is not None else set()
     async def answer_home(self, message):
         if self.is_admin_bot:
             if self.admin(message.from_user.id):
