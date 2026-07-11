@@ -1,0 +1,12 @@
+name = "detail-pro-bot"
+main = "worker/src/index.ts"
+compatibility_date = "2026-07-11"
+
+[vars]
+CENTER_NAME = "Detail Pro"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "detail-pro-db"
+database_id = "08045fdb-15a7-456b-8559-a95e93f79a79"
+migrations_dir = "worker/migrations"

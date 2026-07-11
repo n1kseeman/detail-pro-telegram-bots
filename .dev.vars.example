@@ -1,0 +1,4 @@
+# Только для локального тестирования Worker. Не публикуйте настоящий файл .dev.vars.
+BOT_TOKEN=
+ADMIN_GROUP_ID=
+WEBHOOK_SECRET=
