@@ -5,6 +5,7 @@ export interface Env {
   WEBHOOK_SECRET?: string;
   CENTER_NAME?: string;
   MANAGER_IDS?: string;
+  OPEN_ADMIN_ACCESS?: string;
   MANAGER_USERNAME?: string;
   MANAGER_PHONE?: string;
 }
@@ -31,7 +32,7 @@ const keyboard = (rows: unknown[][]) => ({ inline_keyboard: rows });
 const dayLabel = (day: string) => new Intl.DateTimeFormat("ru-RU", { timeZone: "Europe/Minsk", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${day}T12:00:00Z`));
 const esc = (v: unknown) => String(v ?? "—").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const managerIds = (env: Env) => new Set((env.MANAGER_IDS || "").split(",").map((id) => Number(id.trim())).filter(Boolean));
-const isManager = (env: Env, userId: number) => managerIds(env).has(userId);
+const isManager = (env: Env, userId: number) => env.OPEN_ADMIN_ACCESS === "true" || managerIds(env).has(userId);
 
 async function telegram(env: Env, method: string, payload: Record<string, unknown>) {
   const response = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/${method}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
